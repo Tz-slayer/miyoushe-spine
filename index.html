@@ -1,0 +1,158 @@
+<html>
+<head>
+<meta charset="UTF-8">
+<title>spine-threejs</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/110/three.min.js"></script>
+<script type="module">
+import { spine } from './js/spine-three.js';
+
+(function () {
+    var scene, camera, renderer;
+    var assetManager;
+    var canvas;
+
+    var baseUrl = "assets/";
+    var HanaCG2hanaJson = "HanaCG2hana.json";
+    var HanaCG2hanaAtlas = HanaCG2hanaJson.replace("-pro", "").replace("-ess", "").replace(".json", ".atlas");
+    var HanaCG2BGJson = "HanaCG2BG.json";
+    var HanaCG2BGAtlas = HanaCG2BGJson.replace("-pro", "").replace("-ess", "").replace(".json", ".atlas");
+    var HanaCG2hanaAnimation = "animation";
+    var HanaCG2BGAnimation = "animation";
+
+    var spineWidth = 2496;
+    var spineHeight = 1404;
+
+    var mesh1, mesh2;
+
+    // uniform 数据
+    const uniformSetting = {
+        delta: { value: 0.016 },
+        fps: { value: 1.0 },
+        time: { value: 0 },
+        resolution: { value: { x: spineWidth, y: spineHeight } }
+    };
+
+    // 用 three.js 自带的 Clock
+    const clock = new THREE.Clock();
+
+    // 渲染循环
+    function tick() {
+        const delta = Math.min(clock.getDelta(), 0.03); // 限制最大间隔，避免掉帧时跳跃
+        uniformSetting.delta.value = delta;
+        uniformSetting.fps.value = delta / 0.0167; // 与理想帧间隔比值
+        uniformSetting.time.value = (uniformSetting.time.value + delta) % 10000;
+
+        if (mesh1) mesh1.update(delta, uniformSetting.time.value);
+        if (mesh2) mesh2.update(delta, uniformSetting.time.value);
+
+        renderer.render(scene, camera);
+        requestAnimationFrame(tick);
+    }
+
+    function init () {
+        var width = window.innerWidth;
+        var height = width * (spineHeight / spineWidth);
+
+        var scale = 0.76; // 设定缩放比例
+
+        camera = new THREE.OrthographicCamera(
+            -spineWidth / 2 * scale, spineWidth / 2 * scale,
+            spineHeight / 2 * scale, -spineHeight / 2 * scale,
+            1, 3000
+        );
+        camera.position.z = 1000;
+
+        scene = new THREE.Scene();
+        renderer = new THREE.WebGLRenderer({antialias: true});
+        renderer.setSize(width, height);
+        document.body.appendChild(renderer.domElement);
+        canvas = renderer.domElement;
+
+        assetManager = new spine.threejs.AssetManager(baseUrl);
+
+        assetManager.loadText(HanaCG2hanaJson);
+        assetManager.loadTextureAtlas(HanaCG2hanaAtlas);
+        assetManager.loadText(HanaCG2BGJson);
+        assetManager.loadTextureAtlas(HanaCG2BGAtlas);
+
+        window.addEventListener('resize', resize);
+
+        requestAnimationFrame(load);
+    }
+
+    function load() {
+        if (assetManager.isLoadingComplete()) {
+            // 第一个动画
+            var atlas1 = assetManager.get(HanaCG2hanaAtlas);
+            var atlasLoader1 = new spine.AtlasAttachmentLoader(atlas1);
+            var skeletonJson1 = new spine.SkeletonJson(atlasLoader1);
+            var skeletonData1 = skeletonJson1.readSkeletonData(assetManager.get(HanaCG2hanaJson));
+            mesh1 = new spine.threejs.SkeletonMesh(skeletonData1, function (parameters) {
+                parameters.depthTest = false;
+                parameters.alphaTest = 0.5;
+            });
+            mesh1.state.setAnimation(0, HanaCG2hanaAnimation, true);
+            mesh1.position.set(0, -60, 10);
+            scene.add(mesh1);
+
+            // 如果需要加载第二个动画，取消注释以下代码
+      
+            var atlas2 = assetManager.get(HanaCG2BGAtlas);
+            var atlasLoader2 = new spine.AtlasAttachmentLoader(atlas2);
+            var skeletonJson2 = new spine.SkeletonJson(atlasLoader2);
+            var skeletonData2 = skeletonJson2.readSkeletonData(assetManager.get(HanaCG2BGJson));
+            mesh2 = new spine.threejs.SkeletonMesh(skeletonData2, function (parameters) {
+                parameters.depthTest = false;
+                parameters.alphaTest = 0.5;
+            });
+            mesh2.state.setAnimation(0, HanaCG2BGAnimation, true);
+            mesh2.position.set(0, 0, 0);
+            scene.add(mesh2);
+      
+
+            // 启动动画循环
+            clock.start();
+            requestAnimationFrame(tick);
+        } else {
+            requestAnimationFrame(load);
+        }
+    }
+
+    function resize () {
+        var w = window.innerWidth;
+        var h = w * (spineHeight / spineWidth);
+
+        // 调整相机视口，缩小视野范围使内容变大
+        var scale = 0.8; // 设定缩放比例
+
+        renderer.setSize(w, h, false);
+        camera.left = -spineWidth / 2;
+        camera.right = spineWidth / 2;
+        camera.top = spineHeight / 2;
+        camera.bottom = -spineHeight / 2;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        canvas.style.width = w + "px";
+        canvas.style.height = h + "px";
+    }
+
+
+    init();
+}());
+</script>
+</head>
+<style>
+    * { margin: 0; padding: 0; }
+    body, html { height: 100% }
+    canvas {
+        width: 100vw;
+        aspect-ratio: 2496 / 1404;
+        height: auto;
+        display: block;
+        background: #222;
+        margin: 0 auto;
+    }
+</style>
+<body>
+</body>
+</html>
